@@ -1,0 +1,38 @@
+{
+  "_comment": "Device build recipe for the comma 4 (codename mici). Each base is an upstream openpilot family; each channel publishes one branch of castanley/openpilot that the comma installer can clone. The MyPilot overlay (agent + protocol + pairing) is assembled fresh from this monorepo for every build — see assemble.py. No driving/safety code is touched on any base.",
+  "bases": [
+    {
+      "name": "sunnypilot",
+      "upstream": "https://github.com/sunnypilot/sunnypilot.git",
+      "overlay_dir": "sunnypilot/mypilot",
+      "install_process": "mypilot-mici/bases/sunnypilot/install_process.py",
+      "status": "validated",
+      "channels": [
+        { "branch": "release-mici", "out": "mypilot-mici" },
+        { "branch": "release-mici-staging", "out": "mypilot-mici-staging" }
+      ]
+    },
+    {
+      "name": "openpilot",
+      "upstream": "https://github.com/commaai/openpilot.git",
+      "overlay_dir": "mypilot",
+      "install_process": "mypilot-mici/bases/root/install_process.py",
+      "status": "experimental",
+      "channels": [
+        { "branch": "release-mici", "out": "mypilot-mici-op" },
+        { "branch": "release-mici-staging", "out": "mypilot-mici-op-staging" }
+      ]
+    },
+    {
+      "name": "frogpilot",
+      "upstream": "https://github.com/FrogAi/FrogPilot.git",
+      "overlay_dir": "mypilot",
+      "install_process": "mypilot-mici/bases/root/install_process.py",
+      "status": "experimental",
+      "channels": [
+        { "branch": "FrogPilot", "out": "mypilot-mici-frog" },
+        { "branch": "FrogPilot-Staging", "out": "mypilot-mici-frog-staging" }
+      ]
+    }
+  ]
+}
