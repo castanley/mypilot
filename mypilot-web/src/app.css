@@ -1,0 +1,439 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+   MyPilot design tokens
+   Dark-first command-center palette. Channels: ink surfaces, a single
+   electric signal-blue accent, and a precise semantic state ramp.
+   All colors are stored as raw "R G B" triplets so Tailwind's
+   <alpha-value> mechanism can apply opacity.
+   ========================================================================= */
+
+@layer base {
+  :root,
+  .dark {
+    /* Surfaces — deep, slightly blue-cool graphite */
+    --bg: 9 12 17; /* app canvas */
+    --bg-subtle: 12 16 22;
+    --surface: 18 23 31; /* cards */
+    --surface-2: 24 30 40; /* raised / inputs */
+    --surface-3: 32 40 52; /* hovered raised */
+    --line: 38 46 58; /* hairline borders */
+    --line-strong: 56 67 84;
+
+    /* Foreground */
+    --fg: 233 238 245;
+    --fg-muted: 156 167 184;
+    --fg-subtle: 110 122 140;
+
+    /* Accent — electric signal blue */
+    --accent: 56 152 255;
+    --accent-fg: 8 12 18;
+    --accent-soft: 26 46 74;
+
+    /* Semantic states */
+    --success: 52 211 153;
+    --success-soft: 16 50 44;
+    --warning: 245 184 73;
+    --warning-soft: 56 42 16;
+    --danger: 248 113 113;
+    --danger-soft: 56 24 26;
+    --info: 125 168 255;
+    --info-soft: 26 38 64;
+
+    color-scheme: dark;
+  }
+
+  /* Optional light theme */
+  .light {
+    --bg: 245 247 250;
+    --bg-subtle: 238 241 246;
+    --surface: 255 255 255;
+    --surface-2: 247 249 252;
+    --surface-3: 238 242 247;
+    --line: 224 229 237;
+    --line-strong: 200 208 220;
+
+    --fg: 19 26 36;
+    --fg-muted: 86 98 116;
+    --fg-subtle: 130 142 160;
+
+    --accent: 20 110 235;
+    --accent-fg: 255 255 255;
+    --accent-soft: 222 235 255;
+
+    --success: 12 158 110;
+    --success-soft: 214 244 234;
+    --warning: 191 126 18;
+    --warning-soft: 252 240 214;
+    --danger: 214 53 53;
+    --danger-soft: 252 226 226;
+    --info: 44 102 224;
+    --info-soft: 222 233 255;
+
+    color-scheme: light;
+  }
+
+  * {
+    border-color: rgb(var(--line));
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  /* Never allow the document itself to scroll horizontally on mobile — the app shell scrolls
+     vertically inside <main>; wide content (tables, etc.) scrolls within its own container. */
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.28);
+    color: rgb(var(--fg));
+  }
+
+  /* Focus ring — visible and consistent across the system */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  /* Custom scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line-strong)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(var(--line-strong));
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--fg-subtle));
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* =========================================================================
+   Component layer — composable primitives
+   ========================================================================= */
+
+@layer components {
+  /* ----- Surfaces ----- */
+  .card {
+    @apply rounded-lg border border-line bg-surface shadow-sm;
+  }
+  .card-2 {
+    @apply rounded-lg border border-line bg-surface-2;
+  }
+  .panel-pad {
+    @apply p-4 sm:p-5;
+  }
+
+  /* ----- Buttons ----- */
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 whitespace-nowrap
+      rounded-md text-sm font-medium leading-none transition
+      duration-150 ease-smooth
+      focus-visible:outline-2 focus-visible:outline-offset-2
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-sm {
+    @apply h-8 px-3 text-[0.8125rem];
+  }
+  .btn-md {
+    @apply h-10 px-4;
+  }
+  .btn-lg {
+    @apply h-11 px-5 text-[0.9375rem];
+  }
+  .btn-icon {
+    @apply h-10 w-10 px-0;
+  }
+  .btn-icon-sm {
+    @apply h-8 w-8 px-0;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-accent-fg shadow-sm hover:brightness-110
+      active:brightness-95;
+  }
+  .btn-secondary {
+    @apply border border-line-strong bg-surface-2 text-fg hover:bg-surface-3
+      active:brightness-95;
+  }
+  .btn-ghost {
+    @apply text-fg-muted hover:bg-surface-2 hover:text-fg active:bg-surface-3;
+  }
+  .btn-danger {
+    @apply bg-danger text-white shadow-sm hover:brightness-110 active:brightness-95;
+  }
+  .btn-danger-soft {
+    @apply border border-danger/30 bg-danger-soft text-danger hover:bg-danger/20;
+  }
+
+  /* ----- Inputs ----- */
+  .input {
+    @apply h-10 w-full rounded-md border border-line-strong bg-surface-2 px-3
+      text-sm text-fg placeholder:text-fg-subtle transition
+      duration-150 ease-smooth
+      hover:border-fg-subtle/60
+      focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/35
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .input-invalid {
+    @apply border-danger focus:border-danger focus:ring-danger/35;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-fg;
+  }
+  .hint {
+    @apply mt-1.5 text-xs text-fg-subtle;
+  }
+  .error-text {
+    @apply mt-1.5 text-xs font-medium text-danger;
+  }
+
+  /* ----- Badges / pills ----- */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5
+      text-xs font-medium leading-tight;
+  }
+  .badge-neutral {
+    @apply border-line bg-surface-2 text-fg-muted;
+  }
+  .badge-accent {
+    @apply border-accent/30 bg-accent/10 text-accent;
+  }
+  .badge-success {
+    @apply border-success/30 bg-success-soft text-success;
+  }
+  .badge-warning {
+    @apply border-warning/30 bg-warning-soft text-warning;
+  }
+  .badge-danger {
+    @apply border-danger/30 bg-danger-soft text-danger;
+  }
+  .badge-info {
+    @apply border-info/30 bg-info-soft text-info;
+  }
+
+  .dot {
+    @apply inline-block h-2 w-2 shrink-0 rounded-full;
+  }
+
+  /* ----- Tabs ----- */
+  .tab {
+    @apply relative inline-flex items-center gap-2 whitespace-nowrap rounded-md
+      px-3 py-2 text-sm font-medium text-fg-muted transition
+      hover:text-fg disabled:opacity-40;
+  }
+  .tab-active {
+    @apply text-fg;
+  }
+  /* Horizontal-only tab strip: lock touch panning to the x-axis (overflow-x-auto would otherwise
+     compute overflow-y to auto, letting the active-tab underline at -bottom-px be dragged
+     vertically on mobile) and hide the scrollbar so it reads as a clean swipe row. */
+  .tab-scroll {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .tab-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ----- Misc ----- */
+  .mono {
+    @apply font-mono tracking-tight;
+  }
+  .kbd {
+    @apply inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded
+      border border-line-strong bg-surface-2 px-1.5 font-mono text-[0.6875rem]
+      text-fg-muted;
+  }
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-surface-2;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--fg) / 0.06),
+      transparent
+    );
+    animation: shimmer 1.5s infinite;
+  }
+  .section-label {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle;
+  }
+  .divider {
+    @apply h-px w-full bg-line;
+  }
+  .grid-noise {
+    background-image:
+      radial-gradient(rgb(var(--line) / 0.6) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  /* ----- Rendered markdown (docs wiki) ----- */
+  .doc-prose {
+    @apply text-[0.95rem] leading-7 text-fg-muted;
+  }
+  .doc-prose > :first-child {
+    @apply mt-0;
+  }
+  .doc-prose h1,
+  .doc-prose h2,
+  .doc-prose h3,
+  .doc-prose h4 {
+    @apply scroll-mt-24 font-semibold text-fg;
+  }
+  .doc-prose h1 {
+    @apply mb-4 mt-10 text-2xl tracking-tight;
+  }
+  .doc-prose h2 {
+    @apply mb-3 mt-10 border-b border-line pb-2 text-xl tracking-tight;
+  }
+  .doc-prose h3 {
+    @apply mb-2 mt-7 text-lg;
+  }
+  .doc-prose h4 {
+    @apply mb-2 mt-6 text-base;
+  }
+  .doc-prose p {
+    @apply my-4;
+  }
+  .doc-prose a {
+    @apply font-medium text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent;
+  }
+  .doc-prose ul {
+    @apply my-4 list-disc space-y-1.5 pl-6;
+  }
+  .doc-prose ol {
+    @apply my-4 list-decimal space-y-1.5 pl-6;
+  }
+  .doc-prose li {
+    @apply pl-1;
+  }
+  .doc-prose li::marker {
+    @apply text-fg-subtle;
+  }
+  .doc-prose strong {
+    @apply font-semibold text-fg;
+  }
+  .doc-prose code {
+    @apply rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-fg;
+  }
+  .doc-prose pre {
+    @apply my-5 overflow-x-auto rounded-lg border border-line bg-bg-subtle p-4 text-sm leading-relaxed;
+  }
+  .doc-prose pre code {
+    @apply border-0 bg-transparent p-0 text-fg-muted;
+  }
+  .doc-prose blockquote {
+    @apply my-5 border-l-2 border-accent/50 bg-surface/40 py-1 pl-4 text-fg-muted;
+  }
+  .doc-prose hr {
+    @apply my-8 border-line;
+  }
+  .doc-prose table {
+    @apply my-5 block w-full overflow-x-auto border-collapse text-sm;
+  }
+  .doc-prose th {
+    @apply border border-line bg-surface-2 px-3 py-2 text-left font-semibold text-fg;
+  }
+  .doc-prose td {
+    @apply border border-line px-3 py-2 align-top;
+  }
+  .doc-prose img {
+    @apply my-5 rounded-lg border border-line;
+  }
+}
+
+/* Leaflet's container defaults to a light grey (#ddd) that flashes through before/while tiles load —
+   jarring in dark mode and when panning (newly-revealed area paints before its tiles arrive). Paint
+   the container AND the tile pane a theme surface so unloaded areas blend with the basemap (CARTO Dark
+   Matter / Positron). Leaflet's own #ddd rule lives in a separately-loaded leaflet.css whose order
+   isn't guaranteed, so we beat it on specificity: `.mp-map.leaflet-container` (both classes are on our
+   map div once Leaflet inits) outranks Leaflet's bare `.leaflet-container`. --bg-subtle adapts per theme. */
+.mp-map.leaflet-container,
+.mp-map .leaflet-tile-pane {
+  background: rgb(var(--bg-subtle));
+}
+
+/* Map attribution: OSM's guidelines require the credit VISIBLE by default, but allow auto-collapsing
+   it after ~5s as long as it's reachable afterward. So: shown small/low-contrast on load, then the
+   component adds `.mp-collapsed` after 5s to shrink it to a ⓘ that re-reveals the text on hover.
+   Override Leaflet's default white box by matching its container-scoped specificity. */
+.leaflet-container .leaflet-control-attribution.mp-attrib {
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 9px;
+  line-height: 1.4;
+  padding: 1px 6px;
+  margin: 0;
+  border-radius: 6px 0 0 0;
+  box-shadow: none;
+  transition: all 0.2s ease;
+}
+.leaflet-control-attribution.mp-attrib a {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Collapsed state (added after 5s): show just a faint ⓘ; reveal the credit again on hover/focus. */
+.leaflet-container .leaflet-control-attribution.mp-attrib.mp-collapsed {
+  background: transparent;
+}
+.leaflet-control-attribution.mp-attrib.mp-collapsed::before {
+  content: "\24D8"; /* ⓘ */
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  color: rgba(127, 127, 127, 0.5);
+}
+.leaflet-control-attribution.mp-attrib.mp-collapsed:not(:hover):not(:focus-within) .mp-cred {
+  display: none;
+}
+.leaflet-container .leaflet-control-attribution.mp-attrib.mp-collapsed:hover,
+.leaflet-container .leaflet-control-attribution.mp-attrib.mp-collapsed:focus-within {
+  background: rgba(0, 0, 0, 0.55);
+}
+.leaflet-control-attribution.mp-attrib.mp-collapsed:hover::before,
+.leaflet-control-attribution.mp-attrib.mp-collapsed:focus-within::before {
+  display: none;
+}
