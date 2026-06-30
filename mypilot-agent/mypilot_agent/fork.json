@@ -1,0 +1,4 @@
+{
+  "_comment": "FORK KNOB: set your self-hosted MyPilot Stack URL here. The on-device agent uses this as its default (overridable at runtime via /data/mypilot/config.json or the MYPILOT_STACK_URL env var). Changing this one file is all a fork needs to point its builds at its own Stack.",
+  "stack_url": "https://mypilot.me"
+}

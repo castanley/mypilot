@@ -1,0 +1,6 @@
+-r requirements.txt
+# The agent imports mypilot_protocol at runtime; install it editable for tests (CI does `pip install
+# -e ../mypilot-protocol`). openpilot/cereal are NOT installed in CI — every openpilot import in the
+# agent is lazy + guarded, so the dev-machine code paths (params/sampler = None) are fully testable.
+pytest==8.3.4
+pytest-asyncio==0.25.0
