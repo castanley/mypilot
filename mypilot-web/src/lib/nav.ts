@@ -22,6 +22,10 @@ export const navItems: NavItem[] = [
   { label: "Logs", href: "/logs", icon: "logs", group: "system" },
   { label: "Security", href: "/security", icon: "security", comingSoon: true, group: "system" },
   { label: "Developer", href: "/developer", icon: "developer", adminOnly: true, group: "system" },
+  // Admin hub: a generic landing for admin-only utility pages. The tools it lists are discovered at
+  // runtime from GET /api/admin/tools (empty by default; an installed extension can register one), so
+  // the panel needs no per-tool entries here.
+  { label: "Admin", href: "/admin", icon: "shield-check", adminOnly: true, group: "system" },
 ];
 
 export const navGroups: { id: NavItem["group"]; label: string }[] = [

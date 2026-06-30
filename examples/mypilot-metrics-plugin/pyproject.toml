@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "mypilot-metrics-plugin"
 version = "0.1.0"
 description = "Example MyPilot extension: a Prometheus-style /api/metrics endpoint."
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 
 # This is what makes the package a MyPilot extension: it registers a callable under the "mypilot.app"
 # entry-point group. When the package is installed, the MyPilot API discovers it at startup and calls

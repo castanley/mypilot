@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import fork_config, storage
+from .. import admin_tools, fork_config, storage
 from ..audit import record_audit
 from ..db import get_session
 from ..deps import CurrentAuth, client_ip, require_admin, require_admin_csrf
@@ -129,6 +129,13 @@ async def admin_audit(
         )
     ).scalars().all()
     return [AuditEventOut.model_validate(r) for r in rows]
+
+
+@router.get("/api/admin/tools")
+async def admin_tools_list(_auth: CurrentAuth = Depends(require_admin)) -> list[dict]:
+    """The registered admin tools, for the web Admin hub to render. Empty by default; an installed
+    extension can register its own tool at startup. Admin-only."""
+    return [t.as_dict() for t in admin_tools.registered()]
 
 
 @router.get("/api/admin/config", response_model=ForkConfig)

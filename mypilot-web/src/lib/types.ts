@@ -338,3 +338,12 @@ export interface SettingChangeOut {
   created_at: string;
   applied_at: string | null;
 }
+
+// A registered admin utility, surfaced by GET /api/admin/tools and rendered on the Admin hub.
+export interface AdminTool {
+  key: string;
+  label: string;
+  href: string;
+  description: string;
+  icon: string;
+}

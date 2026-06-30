@@ -38,3 +38,16 @@ def setup(app: FastAPI) -> None:
     @app.get("/api/metrics", include_in_schema=False)
     async def metrics() -> Response:  # noqa: D401 - simple endpoint
         return Response(content=_render(), media_type="text/plain; version=0.0.4")
+
+    # Also demonstrate the admin-tools registry: register a "Metrics" tool so it appears on the web
+    # Admin hub (/admin) and gets an admin-only entry — no web-bundle changes needed. The page it
+    # points at can be anything the extension serves; here it's the raw /api/metrics text.
+    try:
+        from app import admin_tools
+
+        admin_tools.register(admin_tools.AdminTool(
+            key="metrics", label="Metrics", href="/api/metrics",
+            description="Prometheus-style process metrics.", icon="activity",
+        ))
+    except Exception:  # noqa: BLE001 - older core without the registry: the route still works
+        pass
