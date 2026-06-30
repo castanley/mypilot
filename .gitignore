@@ -1,0 +1,77 @@
+# --- Secrets / credentials (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+secrets/
+*.secret
+# SunnyLink inspection artifacts must never be committed
+*.har
+**/browser-profile/
+screenshots/
+recordings/
+# Captured credentials / request dumps (never commit — see docs/security.md)
+auth_session_cookies
+*session_cookies*
+*_cookies
+*cookies.txt
+*.authcapture
+# Local-only working artifacts (audit reports etc.) — may enumerate unfixed security gaps; never commit
+*.local.md
+# Local-only working directories (scratch, notes) — never commit
+*.local/
+
+# --- Device agent local state ---
+.mypilot/
+mypilot-agent/.mypilot/
+*_ed25519
+*_ed25519.pub
+
+# --- Private per-build overlays (personal, non-publishable device assets) — NEVER commit ---
+# The public recipe must produce a clean, publishable image; any private layer is applied locally on
+# top and lives only here, untracked.
+mypilot-mici/bases/*/private/
+
+# --- Per-deployment private compose override + private settings overlay — NEVER commit ---
+# Wires this deployment's private settings JSON (e.g. owner-only safety toggles) into the api
+# container. Lives only on the operator's host.
+compose.override.yaml
+deploy/private/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+# sdist/wheel build dirs (regenerated; never tracked)
+packages/mypilot-protocol/build/
+mypilot-protocol/build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# --- Node / SvelteKit ---
+node_modules/
+.svelte-kit/
+mypilot-web/build/
+mypilot-web/.vercel/
+dist/
+.npm/
+.pnpm-store/
+
+# --- Container / build ---
+*.log
+.DS_Store
+
+# --- Editor ---
+.idea/
+.vscode/
+*.swp
+
+# Internal build-planning prompt (not a published artifact)
+/plan

@@ -1,0 +1,33 @@
+# Shared lint config for all MyPilot Python (protocol, agent, stack/api, mici recipe).
+# Pinned in CI (.github/workflows/ci.yml) so the ruleset doesn't drift across ruff releases.
+# Kept deliberately close to ruff's defaults — this is a real public, safety-relevant repo, so we
+# want signal (real bugs / dead code), not a wall of style nits the team will start ignoring.
+
+target-version = "py311"
+line-length = 110  # matches the existing code's comfortable width; not a hard reformat mandate
+
+# Exclude vendored / generated / non-source trees.
+extend-exclude = [
+    "mypilot-web/node_modules",
+    "mypilot-mici/bases/*/files",  # the build OVERLAY is openpilot-derived source we copy verbatim;
+                                   # linting it would flag upstream style we don't own. The recipe
+                                   # logic itself (assemble.py, verify_assembled.py, *.py at top) IS linted.
+]
+
+# Start lean and GREEN — a CI that's red on day one trains everyone to ignore it. This ruleset is the
+# high-signal core; B (flake8-bugbear) and UP (pyupgrade) are deliberately DEFERRED as dedicated
+# follow-up cleanups (UP in particular rewrites to py3.11-only idioms like datetime.UTC, which would
+# break the on-device agent if the device Python is older — never force it here).
+[lint]
+# E/F = pyflakes + pycodestyle (real errors: undefined names, unused imports, syntax).
+# I    = import sorting (cheap, mechanical consistency).
+select = ["E", "F", "I"]
+ignore = [
+    "E501",  # line-too-long: soft via line-length, not a hard CI failure
+    "E402",  # module-import-not-at-top: intentional in a few files (sys.path setup before imports)
+]
+
+[lint.isort]
+# Keep `x, y as z` aliased imports in a SINGLE `from .pkg import (...)` block rather than exploding
+# each alias into its own statement (which reads worse — see app/main.py's router imports).
+combine-as-imports = true
