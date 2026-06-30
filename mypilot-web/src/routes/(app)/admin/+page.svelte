@@ -23,7 +23,7 @@
 {:else if data.tools.length === 0}
   <div class="card mb-6">
     <EmptyState
-      icon="module"
+      icon="sparkles"
       title="No admin tools"
       description="No additional admin tools are installed on this deployment." />
   </div>

@@ -20,7 +20,7 @@ class AdminTool:
     label: str        # display name, e.g. "Metrics"
     href: str         # where its page lives, e.g. "/admin/metrics"
     description: str = ""
-    icon: str = "module"  # an Icon.svelte key; unknown names fall back gracefully
+    icon: str = "sparkles"  # an icon name for the web hub; unknown names fall back gracefully
 
     def as_dict(self) -> dict:
         return {"key": self.key, "label": self.label, "href": self.href,
