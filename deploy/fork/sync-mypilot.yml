@@ -1,0 +1,49 @@
+# Publishes the MyPilot device channels to castanley/openpilot (the installer-named delivery repo).
+#
+# This is a THIN workflow: it just clones the public monorepo (the single source of truth) and runs
+# mypilot-mici/publish.sh, which rebuilds every channel = <upstream base> + the freshly assembled
+# MyPilot overlay and force-pushes only the branches that actually changed.
+#
+# It lives on the delivery repo's DEFAULT branch (master) so the schedule fires. The canonical copy
+# is tracked in the monorepo at deploy/fork/sync-mypilot.yml; redeploy it to .github/workflows/ on
+# the openpilot repo's master when it changes. No secrets needed: the monorepo is public, and the
+# pushes use this repo's own GITHUB_TOKEN.
+name: sync-mypilot
+
+on:
+  schedule:
+    - cron: "17 8 * * *"   # daily ~08:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-mypilot
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout delivery repo (openpilot)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Fetch existing mypilot-* branches (so unchanged ones aren't re-pushed)
+        run: git fetch --depth 1 origin '+refs/heads/mypilot-*:refs/remotes/origin/mypilot-*' || true
+
+      - name: Clone the monorepo (source of truth) outside the workspace
+        # Defaults to this repo owner's `mypilot` fork so forkers don't have to edit this file;
+        # override with the MYPILOT_MONOREPO_URL repo/org variable if your monorepo lives elsewhere.
+        run: |
+          MONO_URL="${{ vars.MYPILOT_MONOREPO_URL }}"
+          MONO_URL="${MONO_URL:-${{ github.server_url }}/${{ github.repository_owner }}/mypilot.git}"
+          echo "cloning monorepo: $MONO_URL"
+          git clone --depth 1 "$MONO_URL" "${RUNNER_TEMP}/mypilot"
+
+      - name: Build + publish every channel
+        env:
+          MYPILOT_MONOREPO: ${{ runner.temp }}/mypilot
+        run: bash "${RUNNER_TEMP}/mypilot/mypilot-mici/publish.sh"

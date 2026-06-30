@@ -1,0 +1,153 @@
+name: CI
+
+# Quality gate for a public, safety-relevant repo: lint + tests for every component on every push and
+# PR to main. Jobs run in parallel and are independent. The API + protocol + agent suites are fully
+# self-contained (sqlite + fakeredis; openpilot imports are lazy/guarded), so no service containers
+# are needed. Make `main` a protected branch requiring these checks.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pipx install ruff==0.6.9
+      - name: ruff check
+        run: ruff check .
+
+  protocol:
+    name: Protocol (crypto/signing)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./mypilot-protocol pytest==8.3.4
+      - name: Test
+        working-directory: mypilot-protocol
+        run: python -m pytest
+
+  agent:
+    name: Agent (on-device sidecar)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install (protocol is a runtime dep; openpilot is NOT installed — its imports are lazy)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./mypilot-protocol
+          pip install -r ./mypilot-agent/requirements-dev.txt
+      - name: Test
+        working-directory: mypilot-agent
+        run: python -m pytest
+
+  api:
+    name: API (FastAPI stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install (sqlite + fakeredis; no external services)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./mypilot-protocol
+          pip install -r ./mypilot-stack/api/requirements-dev.txt
+      - name: Migrations match models (no drift)
+        working-directory: mypilot-stack/api
+        env:
+          MYPILOT_ENV: test
+          DATABASE_URL: sqlite+aiosqlite:////tmp/migcheck.db
+        run: |
+          alembic upgrade head
+          alembic check   # fails if the models have drifted from the migration baseline
+      - name: Test
+        working-directory: mypilot-stack/api
+        run: python -m pytest
+
+  web:
+    name: Web (SvelteKit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mypilot-web/package-lock.json
+      - name: Install
+        working-directory: mypilot-web
+        run: npm ci
+      - name: Typecheck (svelte-check)
+        working-directory: mypilot-web
+        run: npm run check
+      - name: Unit tests (vitest)
+        working-directory: mypilot-web
+        run: npm test
+      - name: Build
+        working-directory: mypilot-web
+        run: npm run build
+
+  recipe:
+    name: Device recipe (assemble dry-run gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Syntax-check the recipe Python (no prebuilt base tree in CI to fully assemble against)
+        run: |
+          # The recipe drivers (assemble/verify) + each base's install_process.py. The overlay tree
+          # under bases/*/files is openpilot-derived source copied verbatim and is excluded from lint;
+          # we don't compile it here (it targets the device's Python/runtime, not CI's).
+          python -m compileall -q \
+            mypilot-mici/assemble.py \
+            mypilot-mici/verify_assembled.py \
+            mypilot-mici/recover_backlog.py \
+            mypilot-mici/bases/sunnypilot/install_process.py \
+            mypilot-mici/bases/root/install_process.py
+
+  docs-links:
+    name: Docs (no dangling intra-repo links)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Every relative markdown link resolves to a tracked file
+        run: |
+          # Catch README/docs links that point at a file not in the tree (e.g. a doc removed without
+          # updating its references). Only checks repo-relative .md targets; skips http(s)/anchors.
+          fail=0
+          while IFS= read -r md; do
+            grep -oE '\]\(([^)#]+\.md)' "$md" | sed -E 's/^\]\(//' | while IFS= read -r tgt; do
+              case "$tgt" in http*|/*) continue;; esac
+              base="$(dirname "$md")"
+              [ -f "$base/$tgt" ] || { echo "$md -> missing $tgt"; exit 7; }
+            done || fail=1
+          done < <(git ls-files '*.md')
+          [ "$fail" = 0 ] || { echo "dangling intra-repo doc link(s) above"; exit 1; }

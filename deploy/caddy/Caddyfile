@@ -1,0 +1,39 @@
+# MyPilot single-origin reverse proxy.
+#
+# MYPILOT_CADDY_SITE controls how Caddy serves the panel:
+#   :80                 -> plain HTTP on port 80 for ANY host (LAN default: works via
+#                          localhost, 127.0.0.1, LAN IP, Tailscale/MagicDNS, hostnames)
+#   mypilot.example.com -> Caddy automatically obtains + renews TLS for that domain
+#
+# WebSocket upgrades (/api/realtime/*) are handled transparently by reverse_proxy.
+
+{$MYPILOT_CADDY_SITE::80} {
+	encode zstd gzip
+
+	# API + realtime WebSockets -> FastAPI (path prefix is preserved).
+	handle /api/* {
+		# Overwrite (not append) X-Forwarded-For with the real peer so a client can't spoof it to
+		# defeat the API's per-IP rate limits. The API trusts the last hop, which Caddy sets here.
+		reverse_proxy mypilot-api:8000 {
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	# Everything else -> the SvelteKit web app.
+	handle {
+		reverse_proxy mypilot-web:3000
+	}
+
+	header {
+		# Conservative security headers; safe for a self-hosted control panel.
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

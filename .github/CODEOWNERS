@@ -1,0 +1,11 @@
+# Code ownership for the MyPilot repo. Requiring owner review on CI + ignore rules means the
+# build/release protections can't be quietly weakened in a PR. Enable "Require review from Code
+# Owners" in the branch protection rule for `main` to enforce it.
+
+# Everything, by default.
+*                               @castanley
+
+# Build/release guardrails.
+/.github/workflows/ci.yml       @castanley
+/.github/CODEOWNERS             @castanley
+/.gitignore                     @castanley
