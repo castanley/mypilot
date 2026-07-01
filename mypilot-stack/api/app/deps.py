@@ -26,9 +26,28 @@ settings = get_settings()
 
 
 def client_ip(request: Request) -> str | None:
-    """Best-effort client IP for rate-limit keying. Trusts the LAST hop in X-Forwarded-For, not the
-    first: our reverse proxy (Caddy) appends the genuine client IP to the end, whereas the first
-    entry is fully client-controlled and would let an attacker rotate it to defeat per-IP limits."""
+    """Best-effort client IP for rate-limit keying and audit attribution.
+
+    Trust order, most to least authoritative — all populated by the reverse proxy, never the client:
+      1. ``X-Real-Client-IP`` — when the deployment's proxy resolves the true client and sets this
+         header (having first STRIPPED any inbound copy), it is authoritative. Reading a dedicated
+         header rather than relying on X-Forwarded-For hop-position is robust to proxy topology
+         changes: a stacked/rewritten proxy chain can collapse XFF to a constant, silently keying
+         every client into one bucket, whereas a header the proxy explicitly sets stays correct.
+      2. last ``X-Forwarded-For`` hop — the proxy appends the genuine peer at the end; the first entry
+         is fully client-controlled, so we take the last, never the first.
+      3. socket peer (``request.client.host``) — fail-closed when no proxy header is present.
+
+    Reading a proxy-set header directly (not ``request.client``) is safe because the API is reachable
+    only through that proxy; a self-hosted single-proxy deploy that sets neither header still works
+    via the socket-peer fallback."""
+    real = request.headers.get("x-real-client-ip")
+    if real and real.strip():
+        # Take the FIRST comma token: if two copies of the header reach us they comma-join into
+        # "ip1,ip2", which would become a malformed rate-limit key. We don't rely on the proxy always
+        # collapsing duplicates — keying integrity stays local. (First, not last: the proxy sets this
+        # header itself, so its value leads; a client-injected duplicate would be appended after.)
+        return real.split(",")[0].strip()
     fwd = request.headers.get("x-forwarded-for")
     if fwd:
         hops = [h.strip() for h in fwd.split(",") if h.strip()]

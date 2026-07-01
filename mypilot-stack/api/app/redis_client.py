@@ -90,9 +90,41 @@ async def set_persisted_at(redis: Redis, device_id: str, ts: float, ttl: int) ->
     await redis.set(_persisted_at_key(device_id), str(ts), ex=ttl)
 
 
+def _last_beat_key(device_id: str) -> str:
+    return f"live:last_beat:{device_id}"
+
+
+async def get_last_beat_at(redis: Redis, device_id: str) -> float | None:
+    """The wall-clock of the device's most recent heartbeat, bumped EVERY beat (not gated on the
+    write-behind persist cadence). New-drive detection needs the true last-beat time — the DB
+    last_heartbeat_at column only advances on a committed beat, so in write-behind mode it can lag the
+    persist interval and make a continuous drive look like a fresh one. This key is the un-coalesced
+    truth. Presence-TTL'd, so it expires with the device."""
+    raw = await redis.get(_last_beat_key(device_id))
+    return float(raw) if raw else None
+
+
+async def set_last_beat_at(redis: Redis, device_id: str, ts: float, ttl: int) -> None:
+    await redis.set(_last_beat_key(device_id), str(ts), ex=ttl)
+
+
 async def clear_live_state(redis: Redis, device_id: str) -> None:
-    """Drop the live working-state keys (on clean offline; they're TTL'd so this is just promptness)."""
+    """Reset-both primitive: drop ALL live working-state keys (trail + persisted clock). Currently
+    unused — set_offline switched to clear_persisted_at (clock only) so a transient offline preserves
+    the trail. Kept as the explicit "hard reset the live trail" utility (e.g. a future admin/device
+    wipe); NOT to be called on a mere offline (see clear_persisted_at)."""
     await redis.delete(_live_track_key(device_id), _persisted_at_key(device_id))
+
+
+async def clear_persisted_at(redis: Redis, device_id: str) -> None:
+    """Drop only the write-behind persisted-clock key, preserving the accumulating trail. Used on
+    offline: a transient WS drop / presence-TTL lapse mid-drive is a PRESENCE fact, not the end of the
+    drive — the trail must survive so the live map resumes on reconnect instead of restarting from the
+    reconnect point. The trail (in the DB row for interval=0, or the TTL'd live:track key for the
+    write-behind path) is owned by the `onroad` flag and the new-drive gap reset, not by going offline.
+    Clearing the clock is still correct: the next persist should be forced fresh, not gated on a stale
+    interval boundary from before the drop."""
+    await redis.delete(_persisted_at_key(device_id))
 
 
 # --- Rate limiting (fixed window) --------------------------------------------------------------

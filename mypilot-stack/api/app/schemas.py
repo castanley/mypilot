@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Message(BaseModel):
@@ -110,6 +111,32 @@ class DrivingTelemetry(BaseModel):
     longitude: float | None = None
     accuracy_m: float | None = None     # horizontal position accuracy, meters
     gear: str | None = None             # PRNDL: park|drive|reverse|neutral|... (carState.gearShifter)
+
+    @field_validator("latitude", "longitude", mode="before")
+    @classmethod
+    def _finite_in_range(cls, v: Any, info) -> Any:
+        """Reject a non-finite or out-of-range coordinate at the ingest boundary — never trust the
+        producer. A device (or a spoofed payload) sending NaN/inf or |lat|>90 / |lon|>180 must not
+        reach the trail accumulator: NaN would freeze the trail (every jitter-gate comparison is False,
+        so no real fix ever appends) and inf makes the equirectangular distance do math.cos(inf) ->
+        ValueError, crashing the heartbeat every subsequent beat (a self-sustaining per-device DoS).
+        None stays valid (GPS warming up / offroad). We coerce to float first so a numeric string can't
+        smuggle a non-finite value past the check."""
+        if v is None:
+            return None
+        if isinstance(v, bool):
+            # bool is an int subtype, so float(True) == 1.0 would silently pass as a real coordinate.
+            raise ValueError("coordinate must be a number, not a boolean")
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            raise ValueError("coordinate must be a number")
+        if not math.isfinite(f):
+            raise ValueError("coordinate must be finite (no NaN/inf)")
+        limit = 90.0 if info.field_name == "latitude" else 180.0
+        if abs(f) > limit:
+            raise ValueError(f"{info.field_name} out of range (|value| <= {limit:g})")
+        return f
 
 
 class PowerTelemetry(BaseModel):
@@ -319,13 +346,14 @@ class RouteSummary(BaseModel):
     # would bloat the list response; fetch it per-drive from /routes/{id}/track.
     start_lat: float | None = None
     start_lon: float | None = None
+    # Reverse-geocoded start/end city (offline dataset), shown on the map tile as "City → City".
+    start_location: str | None = None
+    end_location: str | None = None
     has_track: bool = False
     created_at: datetime
 
 
 class RouteDetail(RouteSummary):
-    start_location: str | None = None
-    end_location: str | None = None
     files: list[RouteFileOut] = Field(default_factory=list)
 
 
@@ -413,6 +441,11 @@ class StorageReconcileResult(BaseModel):
     logs_reconciled: int
 
 
+class RouteMetricsBackfillResult(BaseModel):
+    routes_updated: int
+    routes_skipped_no_source: int
+
+
 class RouteDeleteAllResult(BaseModel):
     routes_deleted: int
 
@@ -446,6 +479,12 @@ class DeviceModelView(ModelOut):
 
 class DeviceModelsResponse(BaseModel):
     active_model_key: str | None = None
+    # True when the device is reporting its model set but has NO explicit active bundle — i.e. it is
+    # running the stock/default model (reverting to stock removes the active-bundle marker on-device).
+    # A display-only hint so the UI can show "Default (stock) model" instead of a blank/unknown tile;
+    # active_model_key stays null (there is no switchable catalog entry for stock), so this never
+    # fabricates a model row. False when the device hasn't reported a model set (unknown/offline).
+    running_default: bool = False
     onroad: bool = False
     models: list[DeviceModelView] = Field(default_factory=list)
 

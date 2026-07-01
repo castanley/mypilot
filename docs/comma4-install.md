@@ -54,7 +54,7 @@ The code is short-lived and one-time. If you don't see it on screen, the agent a
 (`[agent] pairing_code=…`) — see [Debugging](#debugging-on-device-ssh).
 
 > **First time on a public Stack?** Rotate the admin password right away (account menu →
-> **Change password**) and skim the [go-live checklist](go-live.md).
+> **Change password**).
 
 ## 3. Verify
 

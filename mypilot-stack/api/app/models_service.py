@@ -85,7 +85,16 @@ async def build_device_models(
             catalog_keys.add(key)
             views.append(_reported_view(key, key))
 
-    return DeviceModelsResponse(active_model_key=active, onroad=onroad, models=views)
+    # The device is running the STOCK/default model when it reports its model set (an available
+    # catalog and/or installed refs) but names no active bundle. Surface that as a display hint so the
+    # UI shows "Default (stock) model" rather than a blank "unknown" tile — WITHOUT inventing a
+    # switchable model row (active stays null). If the device has reported nothing (no available, no
+    # installed, no active), running_default is False = genuinely unknown/not-yet-reported.
+    device_reported_models = bool(available) or bool(installed)
+    running_default = active is None and device_reported_models
+    return DeviceModelsResponse(
+        active_model_key=active, running_default=running_default, onroad=onroad, models=views
+    )
 
 
 async def issue_model_switch(

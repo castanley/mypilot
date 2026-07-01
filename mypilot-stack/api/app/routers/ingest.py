@@ -223,6 +223,11 @@ async def route_complete(
     route.upload_status = UploadStatus.COMPLETE
     route.parse_status = "parsed"
 
+    # Derive duration/distance + start/end city from the stored GPS track (the device doesn't send
+    # them). Only fill when missing, so a value the device DID provide is never overwritten. Bus-free,
+    # no qlog read, no outbound (city via the bundled offline dataset).
+    routes_service.fill_route_metadata(route)
+
     for upload in (
         await db.execute(
             select(Upload).where(Upload.target_id == route.id, Upload.status == "open")

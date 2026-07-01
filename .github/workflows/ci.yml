@@ -31,6 +31,11 @@ jobs:
       - run: pipx install ruff==0.6.9
       - name: ruff check
         run: ruff check .
+      - name: Seam-import style guard
+        # Certain module-level functions are late-bound (looked up via their module at call time) so
+        # a deployment can wrap them at startup. Importing them as bare symbols would capture the
+        # original at import time and silently defeat that. This guard fails on that import style.
+        run: python scripts/check_seam_imports.py --selftest && python scripts/check_seam_imports.py
 
   protocol:
     name: Protocol (crypto/signing)
@@ -43,7 +48,10 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ./mypilot-protocol pytest==8.3.4
+          # Install the '[test]' extra so BOTH signing backends are present and the cross-backend
+          # interoperability test runs here instead of skipping (a device-signed request must verify
+          # on the server's backend and vice-versa — a divergence would be a fleet-wide auth outage).
+          pip install -e './mypilot-protocol[test]' pytest==8.3.4
       - name: Test
         working-directory: mypilot-protocol
         run: python -m pytest

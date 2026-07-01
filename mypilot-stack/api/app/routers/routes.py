@@ -24,6 +24,7 @@ from ..schemas import (
     RouteDeleteAllResult,
     RouteDetail,
     RouteFileOut,
+    RouteMetricsBackfillResult,
     RouteSummary,
     RouteTrackOut,
     StorageReconcileResult,
@@ -72,6 +73,7 @@ _SUMMARY_COLS = (
     Route.id, Route.device_id, Route.name, Route.alias, Route.started_at, Route.ended_at,
     Route.duration_s, Route.distance_m, Route.segment_count, Route.is_public, Route.privacy_state,
     Route.upload_status, Route.parse_status, Route.size_bytes, Route.start_lat, Route.start_lon,
+    Route.start_location, Route.end_location,
     Route.created_at, Route.gps_track.isnot(None).label("has_track"),
 )
 
@@ -82,7 +84,8 @@ def _summary_from_row(r) -> RouteSummary:
         ended_at=r.ended_at, duration_s=r.duration_s, distance_m=r.distance_m,
         segment_count=r.segment_count, is_public=r.is_public, privacy_state=r.privacy_state,
         upload_status=r.upload_status, parse_status=r.parse_status, size_bytes=r.size_bytes,
-        start_lat=r.start_lat, start_lon=r.start_lon, has_track=bool(r.has_track),
+        start_lat=r.start_lat, start_lon=r.start_lon,
+        start_location=r.start_location, end_location=r.end_location, has_track=bool(r.has_track),
         created_at=r.created_at,
     )
 
@@ -145,13 +148,12 @@ async def get_route(
             .order_by(RouteFile.segment_index, RouteFile.name)
         )
     ).scalars().all()
-    # Build from the summary so we never touch the (async) ``files`` relationship lazily.
+    # Build from the summary so we never touch the (async) ``files`` relationship lazily. start/end
+    # location now live on RouteSummary (shown on the map tile), so model_dump() already carries them.
     summary = RouteSummary.model_validate(route)
     summary.has_track = route.gps_track is not None  # not an ORM attr; derive it
     return RouteDetail(
         **summary.model_dump(),
-        start_location=route.start_location,
-        end_location=route.end_location,
         files=[RouteFileOut.model_validate(f) for f in files],
     )
 
@@ -519,3 +521,27 @@ async def reconcile_storage(
     )
     await db.commit()
     return StorageReconcileResult(**result)
+
+
+@router.post("/maintenance/backfill-route-metrics", response_model=RouteMetricsBackfillResult)
+async def backfill_route_metrics(
+    request: Request,
+    auth: CurrentAuth = Depends(require_csrf),
+    db: AsyncSession = Depends(get_session),
+) -> RouteMetricsBackfillResult:
+    """Admin maintenance: fill missing duration_s/distance_m on existing routes, derived from each
+    route's stored GPS track. Metadata-only + reversible (pure recompute); no object storage touched,
+    only the two scalar columns, and only when currently null (device-supplied values are kept)."""
+    if not auth.user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    result = await routes_service.backfill_route_metrics(db)
+    await record_audit(
+        db,
+        action="route.metrics.backfill",
+        actor_type="user",
+        actor_id=str(auth.user.id),
+        metadata=result,
+        ip=client_ip(request),
+    )
+    await db.commit()
+    return RouteMetricsBackfillResult(**result)

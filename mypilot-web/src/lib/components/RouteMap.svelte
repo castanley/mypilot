@@ -155,11 +155,19 @@
       allBounds.push(L.latLngBounds([[m.lat, m.lon], [m.lat, m.lon]]));
     }
 
-    // Follow mode: don't re-fit on every data change (that snaps/zooms as the trail grows). Set the
-    // view ONCE on the first frame, then track the marker via updateMarker's panTo.
+    // Follow mode: don't re-fit on every data change (that snaps/zooms as the trail grows). FIT the
+    // whole trail ONCE on the first frame (so the map opens zoomed OUT showing the full route), then
+    // track the marker via updateMarker's panTo for every frame after. followZoom caps the fit so a
+    // lone marker with no trail doesn't blow out to world-zoom (≈ the old first-frame zoom).
     if (follow) {
-      if (!followInit && marker) {
-        map.setView([marker.lat, marker.lon], followZoom);
+      if (!followInit && (marker || allBounds.length)) {
+        if (allBounds.length) {
+          let b = allBounds[0];
+          for (const x of allBounds.slice(1)) b = b.extend(x);
+          map.fitBounds(b, { padding: [30, 30], maxZoom: followZoom });
+        } else if (marker) {
+          map.setView([marker.lat, marker.lon], followZoom); // no trail yet: center the lone marker
+        }
         followInit = true;
       }
     } else if (allBounds.length) {

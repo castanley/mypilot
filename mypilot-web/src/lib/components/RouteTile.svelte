@@ -62,6 +62,11 @@
   </div>
   <div class="px-3 py-2">
     <p class="text-sm font-medium text-fg">{dayLabel(route.started_at ?? route.created_at)}</p>
+    {#if route.start_location || route.end_location}
+      <p class="mt-0.5 truncate text-xs text-fg" title="{route.start_location ?? '—'} → {route.end_location ?? '—'}">
+        {route.start_location ?? "—"} → {route.end_location ?? "—"}
+      </p>
+    {/if}
     <p class="mt-0.5 text-xs text-fg-subtle">
       {clockTime(route.started_at ?? route.created_at)} · {fmtDistance(route.distance_m)}
     </p>

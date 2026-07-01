@@ -5,7 +5,7 @@
 //
 // Server-only ($lib/server is never shipped to the browser): we touch the filesystem here.
 import { env } from "$env/dynamic/private";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { marked } from "marked";
 
@@ -36,6 +36,26 @@ const DOCS_DIR = resolveDocsDir();
 // DOCS_DIR via path traversal.
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 
+// DEFAULT-DENY allowlist: the exact set of docs this site serves publicly. Anything on disk that
+// is NOT in this set (self-hosting / operator / dev guides) is 404'd by the site and kept OUT of
+// the index — the .md files stay in the repo for self-hosters/installers, but a future doc added
+// to docs/ does NOT auto-serve publicly. Default-deny (not a blocklist) by design: adding a new
+// public doc is a deliberate edit here, never automatic. Keep this list production-appropriate.
+const SERVED = new Set<string>([
+  "privacy",
+  "security",
+  "comma4-install",
+  "device-registration",
+  "architecture",
+  "about",
+]);
+
+// True iff `slug` is a valid slug the site is allowed to serve. The single gate used by both the
+// page loader (getDoc) and the index (listDocGroups).
+function isServed(slug: string): boolean {
+  return SLUG_RE.test(slug) && SERVED.has(slug);
+}
+
 // Curated wiki: friendly titles, order, and grouping for the user-facing guides. Anything on
 // disk that isn't listed here and isn't internal is auto-appended under "More guides", so a
 // fork that adds a doc gets it in the index for free. Content always comes from the .md.
@@ -57,18 +77,9 @@ const MANIFEST: ManifestEntry[] = [
   { slug: "privacy", title: "Privacy & data ownership", group: "Operations", description: "You own the data — here's how." },
   { slug: "architecture", title: "Architecture", group: "Reference", description: "How the stack fits together." },
   { slug: "development", title: "Local development", group: "Reference", description: "Run and hack on MyPilot locally." },
+  { slug: "about", title: "About & credits", group: "Reference", description: "What MyPilot is + open-data attribution." },
 ];
-const GROUP_ORDER = ["Getting started", "Devices", "Operations", "Reference", "More guides"];
-// Internal design notes / specs — reachable by direct link, but kept out of the index.
-const INTERNAL = new Set([
-  "mypilot-web-feature-spec",
-  "mypilot-integration-plan",
-  "sunnylink-feature-map",
-  "sunnylink-settings-schema",
-  "sunnypilot-code-notes",
-  "sunnypilot-settings-catalog",
-  "web-redesign-brief",
-]);
+const GROUP_ORDER = ["Getting started", "Devices", "Operations", "Reference"];
 
 export interface DocLink {
   slug: string;
@@ -129,38 +140,19 @@ function availableSlugs(): string[] {
   }
 }
 
-function readDoc(slug: string): string | null {
-  if (!SLUG_RE.test(slug)) return null;
-  const file = resolve(DOCS_DIR, `${slug}.md`);
-  if (!existsSync(file)) return null;
-  try {
-    return readFileSync(file, "utf8");
-  } catch {
-    return null;
-  }
-}
-
-// Grouped listing for the /docs index.
+// Grouped listing for the /docs index. Only the SERVED allowlist appears — a manifest entry is
+// listed iff it's both allowlisted and present on disk. There is intentionally NO "auto-append
+// unlisted on-disk docs" step: a new .md added to docs/ must be added to SERVED (a deliberate
+// edit) before it shows up or is linkable, so nothing self-serves publicly.
 export function listDocGroups(): DocGroup[] {
   const present = new Set(availableSlugs());
   const byGroup = new Map<string, DocLink[]>();
-  const used = new Set<string>();
 
   for (const entry of MANIFEST) {
-    if (!present.has(entry.slug)) continue;
-    used.add(entry.slug);
+    if (!isServed(entry.slug) || !present.has(entry.slug)) continue;
     const items = byGroup.get(entry.group) ?? [];
     items.push({ slug: entry.slug, title: entry.title, description: entry.description });
     byGroup.set(entry.group, items);
-  }
-
-  for (const slug of availableSlugs()) {
-    if (used.has(slug) || INTERNAL.has(slug)) continue;
-    const md = readDoc(slug);
-    const title = (md && firstHeading(md)) || titleFromSlug(slug);
-    const items = byGroup.get("More guides") ?? [];
-    items.push({ slug, title });
-    byGroup.set("More guides", items);
   }
 
   return GROUP_ORDER.filter((g) => byGroup.has(g)).map((label) => ({
@@ -173,7 +165,7 @@ export function listDocGroups(): DocGroup[] {
 const cache = new Map<string, { mtimeMs: number; doc: RenderedDoc }>();
 
 export function getDoc(slug: string): RenderedDoc | null {
-  if (!SLUG_RE.test(slug)) return null;
+  if (!isServed(slug)) return null;
   const file = resolve(DOCS_DIR, `${slug}.md`);
   let stat;
   try {

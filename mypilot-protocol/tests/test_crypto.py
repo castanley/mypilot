@@ -48,3 +48,21 @@ def test_verify_is_total_on_garbage_input():
     assert verify(kp.public_key_b64, "not-base64!!", b"msg") is False
     assert verify("not-a-key", sign(kp.private_key_b64, b"msg"), b"msg") is False
     assert verify(kp.public_key_b64, "", b"msg") is False
+
+
+def test_verify_is_total_on_none_and_wrong_type():
+    """verify() must also return False (not raise) when the key or signature is None or a non-str.
+    A None public key reaches the boundary if a device row is missing its key; a non-str can arrive
+    from a malformed/JSON-decoded header. The previous implementation raised AttributeError on a None
+    public key (it skipped the b64-decode guard that only wrapped the signature) — pin that it can't
+    recur, so the 'never raises' contract is strictly total."""
+    kp = generate_keypair()
+    sig = sign(kp.private_key_b64, b"msg")
+    # None / non-str public key (the gap that used to raise).
+    assert verify(None, sig, b"msg") is False
+    assert verify(123, sig, b"msg") is False
+    # None / non-str signature.
+    assert verify(kp.public_key_b64, None, b"msg") is False
+    assert verify(kp.public_key_b64, b"bytes-not-str", b"msg") is False
+    # Both bad at once.
+    assert verify(None, None, b"msg") is False

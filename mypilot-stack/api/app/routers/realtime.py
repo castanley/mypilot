@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from mypilot_protocol.crypto import verify
 from mypilot_protocol.messages import FrameType, ws_auth_message
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from ..config import get_settings
@@ -176,7 +177,16 @@ async def realtime_device(websocket: WebSocket) -> None:
                 await mark_online(redis, device_id, settings.presence_ttl_seconds)
 
             elif ftype == FrameType.STATUS.value:
-                payload = HeartbeatRequest(**(frame.get("payload") or {}))
+                # Validate the frame in isolation: a single malformed STATUS frame (e.g. a buggy device
+                # emitting a NaN/out-of-range coordinate the schema now rejects) must NOT escape to the
+                # connection-level handler, whose finally clause runs set_offline — that would flap the
+                # device's socket/presence/trail on every bad frame. Skip just this frame, mirroring the
+                # REST path's per-request 422 rejection; a healthy device stays connected and online.
+                try:
+                    payload = HeartbeatRequest(**(frame.get("payload") or {}))
+                except ValidationError:
+                    log.warning("device %s sent an invalid STATUS frame; skipping it", device_id)
+                    continue
                 async with SessionLocal() as db:
                     fresh = await db.get(Device, device_id)
                     if fresh is not None:

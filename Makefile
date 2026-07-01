@@ -36,8 +36,10 @@ api-shell: ## Open a shell in the api container
 test: ## Run backend (api) tests inside the api container
 	$(COMPOSE) run --rm mypilot-api pytest -q
 
-lint: ## Lint all Python with ruff (matches CI)
+lint: ## Lint all Python with ruff + the seam-import style guard (matches CI)
 	ruff check .
+	python scripts/check_seam_imports.py --selftest
+	python scripts/check_seam_imports.py
 
 test-protocol: ## Run the protocol (crypto/signing) tests
 	cd mypilot-protocol && python -m pytest

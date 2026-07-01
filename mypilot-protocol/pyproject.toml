@@ -11,6 +11,14 @@ dependencies = [
     "cryptography>=42.0.0",
 ]
 
+[project.optional-dependencies]
+# The 'test' extra installs the SECOND Ed25519 backend (the one comma devices ship) alongside the
+# default, so the cross-backend interoperability test actually runs instead of skipping. Production
+# installs ONLY the base dependency; CI installs '.[test]' to exercise both backends together.
+test = [
+    "pycryptodome>=3.20.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mypilot_protocol*"]

@@ -61,6 +61,36 @@ async def test_device_reported_model_shows(client):
     assert "supercombo-2026" in by_key and by_key["supercombo-2026"]["active"] is True
 
 
+async def test_running_default_when_device_reports_no_active_bundle(client):
+    """A device on the STOCK model reports its catalog (available/installed) but active_ref=null.
+    The API stays honest (active_model_key null, no fabricated model row) and sets running_default so
+    the UI can show 'Default (stock) model' instead of an unknown/blank tile."""
+    csrf = await setup_admin(client)
+    device_id, dkeys = await pair_device(client, csrf)
+    await device_post(
+        client, device_id, dkeys, HEARTBEAT,
+        {"onroad": False, "subsystems": {"models": {
+            "active_ref": None, "installed_refs": [],
+            "available": [{"key": "aaa", "name": "Model A"}, {"key": "bbb", "name": "Model B"}],
+        }}},
+    )
+    dm = (await client.get(f"/api/devices/{device_id}/models")).json()
+    assert dm["active_model_key"] is None            # API stays honest — no fake active
+    assert dm["running_default"] is True             # display hint: running the stock model
+    assert not any(m["active"] for m in dm["models"])  # no model row is marked active
+
+
+async def test_running_default_false_when_device_reported_nothing(client):
+    """No models block reported at all (never heartbeated a catalog) → running_default False =
+    genuinely unknown/not-yet-reported, so the UI shows the 'no active model reported yet' state."""
+    csrf = await setup_admin(client)
+    device_id, dkeys = await pair_device(client, csrf)
+    await device_post(client, device_id, dkeys, HEARTBEAT, {"onroad": False, "subsystems": {}})
+    dm = (await client.get(f"/api/devices/{device_id}/models")).json()
+    assert dm["active_model_key"] is None
+    assert dm["running_default"] is False
+
+
 async def test_model_download_checksum(client):
     csrf = await setup_admin(client)
     device_id, keys = await pair_device(client, csrf)

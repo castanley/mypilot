@@ -121,6 +121,16 @@
           </p>
         </div>
       </div>
+    {:else if data?.running_default}
+      <div class="flex items-center gap-3">
+        <div class="grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface-2 text-accent">
+          <Icon name="models" size={20} />
+        </div>
+        <div>
+          <p class="font-semibold text-fg">Default (stock) model</p>
+          <p class="text-xs text-fg-subtle">The device is running its built-in model. Switch to one below to change it.</p>
+        </div>
+      </div>
     {:else}
       <p class="text-sm text-fg-muted">No active model reported yet. The device reports its running model on the next heartbeat.</p>
     {/if}

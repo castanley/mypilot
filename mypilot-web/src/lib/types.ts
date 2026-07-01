@@ -165,13 +165,13 @@ export interface RouteSummary {
   size_bytes: number;
   start_lat: number | null;
   start_lon: number | null;
+  start_location: string | null;
+  end_location: string | null;
   has_track: boolean;
   created_at: string;
 }
 
 export interface RouteDetail extends RouteSummary {
-  start_location: string | null;
-  end_location: string | null;
   files: RouteFileOut[];
 }
 
@@ -250,6 +250,8 @@ export interface DeviceModelView extends ModelOut {
 
 export interface DeviceModelsResponse {
   active_model_key: string | null;
+  // Device is reporting its model set but names no active bundle → running the stock/default model.
+  running_default?: boolean;
   onroad: boolean;
   models: DeviceModelView[];
 }

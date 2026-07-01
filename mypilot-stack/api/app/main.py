@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from contextlib import asynccontextmanager
 from importlib.metadata import entry_points
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 
 from . import storage
@@ -110,6 +114,27 @@ def create_app() -> FastAPI:
     )
     app.state.redis = None
     app.state.manager = None
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error_handler(request: Request, exc: RequestValidationError):
+        """Return a clean 422 for a bad request body — even when the offending value is a non-finite
+        float. FastAPI's default handler echoes the raw input back in the error detail, and Starlette's
+        JSONResponse renders with json.dumps(allow_nan=False), so a NaN/Infinity coordinate literal in
+        the body would make the ERROR RESPONSE render raise and surface as a 500 (masking the real 422
+        and polluting error monitoring). A genuinely-buggy device emitting a real NaN hits exactly this.
+        jsonable_encoder gives the same detail shape as the default handler (and stringifies the ctx
+        ValueError); we then scrub any remaining non-finite float so the 422 always renders. Behavior
+        for well-formed requests is unchanged — this only fires on a validation error."""
+        def _scrub(obj):
+            if isinstance(obj, float) and not math.isfinite(obj):
+                return str(obj)  # "nan"/"inf" — renders fine and still tells the caller what came in
+            if isinstance(obj, dict):
+                return {k: _scrub(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                return [_scrub(v) for v in obj]
+            return obj
+
+        return JSONResponse(status_code=422, content={"detail": _scrub(jsonable_encoder(exc.errors()))})
 
     # Order matters: literal-prefix routers before the generic /api/devices router.
     app.include_router(health.router)

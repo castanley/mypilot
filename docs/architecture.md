@@ -14,21 +14,11 @@ Everything runs on hardware **you** control. The device keeps driving even if th
 | `mypilot-redis` | `redis:7` | Presence, pairing-code TTLs, rate limits, pub/sub |
 | `mypilot-object-storage` | MinIO | Object storage for logs/routes/backups |
 
-Scaffolded but not started yet: `mypilot-stack/realtime`, `mypilot-stack/ingest`,
-`mypilot-stack/worker`, `mypilot-stack/builder`.
-
 ## Single-origin model
 
 Caddy serves the web app and the API under **one origin** so the session cookie is
-same-origin and CSRF is straightforward. The browser only ever calls `/api/*` on the same host.
-Only Caddy (80/443) and the MinIO console (9001) are published; Postgres, Redis, API, and Web
-stay on the internal Podman network.
-
-```
-browser ──HTTP/WS──> caddy ──/──────> mypilot-web (SSR shell)
-                          └──/api/*──> mypilot-api ──> postgres / redis / minio
-device  ──HTTP/WS──> caddy ──/api/*──> mypilot-api
-```
+same-origin and CSRF is straightforward. The browser only ever calls `/api/*` on the same host,
+and only the reverse proxy is reachable from outside — the datastores stay on the internal network.
 
 ## Realtime / presence
 
