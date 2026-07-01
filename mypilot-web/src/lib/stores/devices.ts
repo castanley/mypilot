@@ -10,7 +10,7 @@
 import { derived, writable } from "svelte/store";
 import { browser } from "$app/environment";
 import { subscribeRealtime, subscribeDeviceEvents, onRealtimeOpen } from "$lib/realtime";
-import { getDevices } from "$lib/api";
+import { getDevices, getDevice } from "$lib/api";
 import type { DeviceSummary, DeviceDetail, RealtimeEvent, Subsystems } from "$lib/types";
 
 export type DeviceNode = {
@@ -145,6 +145,19 @@ export async function resyncDevices(): Promise<void> {
     }
     return next;
   });
+
+  // The summary has NO telemetry/live_track, so the above can't restore the accumulating drive trail
+  // — and the WS was suspended while the tab was backgrounded, so the in-memory trail was lost. For
+  // each device the server reports ONROAD, fetch its full detail (status_detail carries the whole
+  // server-side live_track) and seed it, so returning to a backgrounded tab redraws the ENTIRE line
+  // immediately instead of starting blank until the next heartbeat. Best-effort + parallel.
+  const onroadIds = list.filter((d) => d.onroad).map((d) => d.id);
+  if (onroadIds.length) {
+    const details = await Promise.all(
+      onroadIds.map((id) => getDevice(id).catch(() => null)),
+    );
+    seedDevices(details.filter((d): d is DeviceDetail => d != null));
+  }
 }
 
 /** Dashboard hero seed: a map of device_id -> DeviceDetail for devices already driving. */

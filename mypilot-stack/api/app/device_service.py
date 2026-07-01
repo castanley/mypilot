@@ -68,10 +68,13 @@ def _iso(dt: datetime | None) -> str | None:
 # the ceiling), NOT every heartbeat — DP is O(n^2), so per-append simplification would burn the server
 # on a long drive. Between simplifies the trail just appends (O(1)).
 _LIVE_TRACK_SIMPLIFY_AT = 1500   # simplify when the trail reaches this many points
-_LIVE_TRACK_SIMPLIFY_TOL_M = 12.0  # max deviation a simplified segment may hide (~half a lane width)
-# Hard backstop: if even simplified the trail somehow stays huge (a genuinely 1500-curve drive), cap
-# it, keeping the MOST RECENT points so any truncation is at the least-interesting start.
+_LIVE_TRACK_SIMPLIFY_TOL_M = 12.0  # base deviation a simplified segment may hide (~half a lane width)
+# Target ceiling for the trail's point count. We keep the WHOLE drive end-to-end (never truncate the
+# start) by simplifying HARDER when needed: if a pass at the base tolerance still exceeds this, re-run
+# Douglas-Peucker at a coarser tolerance until it fits. So a multi-hour drive keeps its full shape at
+# a bounded size — the early route is preserved (drawn coarser), not dropped off the front.
 _LIVE_TRACK_MAX = 4000
+_LIVE_TRACK_TOL_MAX_M = 400.0    # sanity bound on the coarsen-and-retry escalation
 # Don't append a point unless the device moved at least this far — drops parked GPS jitter and keeps
 # the trail from densifying while stopped at a light (mirrors the route-track philosophy).
 _LIVE_TRACK_MIN_MOVE_M = 8.0
@@ -152,11 +155,16 @@ def _next_live_track(current: list | None, onroad: bool, driving: dict | None) -
     track.append(pt)
     # Append is O(1) every beat. Only when the trail reaches the soft ceiling do we pay the O(n^2)
     # Douglas-Peucker once to collapse near-straight runs — so size follows route shape, not duration,
-    # without re-simplifying on every heartbeat. Hard cap is a final backstop.
+    # without re-simplifying on every heartbeat.
     if len(track) >= _LIVE_TRACK_SIMPLIFY_AT:
         track = _simplify(track, _LIVE_TRACK_SIMPLIFY_TOL_M)
-        if len(track) > _LIVE_TRACK_MAX:
-            track = track[-_LIVE_TRACK_MAX:]
+        # Keep the WHOLE drive: if the base-tolerance pass still exceeds the ceiling (a genuinely long
+        # or curvy multi-hour drive), simplify HARDER (coarser tolerance) and retry rather than
+        # truncating the start. The early route stays on the map, just drawn coarser. Bounded loop.
+        tol = _LIVE_TRACK_SIMPLIFY_TOL_M
+        while len(track) > _LIVE_TRACK_MAX and tol < _LIVE_TRACK_TOL_MAX_M:
+            tol *= 2.0
+            track = _simplify(track, tol)
     return track
 
 

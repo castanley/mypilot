@@ -64,3 +64,25 @@ def test_curvy_drive_keeps_detail_and_stays_bounded():
         update_live_track(s, True, {"latitude": lat, "longitude": lon})
     assert len(s.live_track) <= _LIVE_TRACK_MAX
     assert len(s.live_track) > 100  # detail preserved (not collapsed like a straight line)
+
+
+def test_long_curvy_drive_keeps_whole_route_not_just_the_tail():
+    """A multi-hour very-curvy drive must keep its FULL shape end-to-end (escalating simplification),
+    NOT truncate the start to the last N points. The first point must remain near the drive's start."""
+    import math
+    s = _st()
+    start_lat, start_lon = 37.0, -122.0
+    # A long, genuinely curvy drive (broad sweeping curves like a winding highway — not a per-point
+    # zigzag) with enough points that even a base-tolerance simplify exceeds the ceiling, forcing the
+    # escalation path. Realistic shape so simplification behaves like it does on real GPS.
+    n = 12000
+    for i in range(n):
+        lat = start_lat + i * 0.0004
+        lon = start_lon + 0.03 * math.sin(i / 60.0)
+        update_live_track(s, True, {"latitude": lat, "longitude": lon})
+    assert len(s.live_track) <= _LIVE_TRACK_MAX  # still bounded
+    # The START of the drive is retained (escalating simplify, not tail-truncation): the first kept
+    # point is at/near the real start, NOT thousands of points in.
+    assert s.live_track[0][0] == round(start_lat, 6)
+    # And the end is still the latest position — full span preserved.
+    assert abs(s.live_track[-1][0] - round(start_lat + (n - 1) * 0.0004, 6)) < 1e-6
